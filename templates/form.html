@@ -1,0 +1,41 @@
+{{ define "body" }}
+
+<div class="h5 bg-primary text-white text-center m-2 p-2">RSVP</div>
+{{ if gt (len .Errors) 0 }}
+    <ul class="text-danger mt-3">
+        {{ range .Errors }}
+            <li>{{ . }}</li>
+        {{ end }}
+    </ul>
+{{ end }}
+
+<form method="POST" class="m-2">
+    <div class="form-group my-1">
+        <label>Твоё имя:</label>
+        <input name="name" class="form-control" value="{{ .Name }}" />
+    </div>
+    <div class="form-group my-1">
+        <label>Твой email:</label>
+        <input name="email" class="form-control" value="{{ .Email }}" />
+    </div>
+    <div class="form-group my-1">
+        <label>Твой номер телефона:</label>
+        <input name="phone" class="form-control" value="{{ .Phone }}" />
+    </div>
+    <div class="form-group my-1">
+        <label>Ты придешь?</label>
+        <select name="willattend" class="form-select">
+            <option value="true" {{ if .WillAttend }}selected{{ end }}>
+                Да, ждите меня х)
+            </option>
+            <option value="false" {{ if not .WillAttend }}selected{{ end }}>
+                Не, не смогу прийти х(
+            </option>
+        </select>
+    </div>
+    <button class="btn btn-primary mt-3" type="submit">
+        Отправить ответ
+    </button>
+</form>
+
+{{ end }}
