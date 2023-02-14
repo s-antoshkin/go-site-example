@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"html/template"
 	"net/http"
+
+	"github.com/jackc/pgx/v5"
 )
 
 type Rsvp struct {
@@ -36,7 +39,62 @@ type formData struct {
 	Errors []string
 }
 
+func checkDB(email string) bool {
+	var count int
+	connURL := "postgres://postgres:postgres@localhost:5432/rsvp_db"
+	conn, err := pgx.Connect(context.Background(), connURL)
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+	defer conn.Close(context.Background())
+
+	row := conn.QueryRow(context.Background(), "SELECT COUNT(*) FROM rsvp WHERE email=$1", email)
+	err = row.Scan(&count)
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+	if count > 0 {
+		return true
+	}
+
+	return false
+
+}
+
+func updadeRecord(conn *pgx.Conn, data *Rsvp) {
+	query := "UPDATE rsvp SET name=$1, phone=$2, will_attend=$3 WHERE email=$4"
+	_, err := conn.Exec(context.Background(), query, data.Name, data.Phone, data.WillAttend, data.Email)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+}
+
+func insertRecord(data *Rsvp) {
+	connURL := "postgres://postgres:postgres@localhost:5432/rsvp_db"
+	conn, err := pgx.Connect(context.Background(), connURL)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer conn.Close(context.Background())
+
+	if checkDB(data.Email) {
+		updadeRecord(conn, data)
+	} else {
+		query := "INSERT INTO rsvp (name, email, phone, will_attend) VALUES ($1, $2, $3, $4)"
+		_, err := conn.Query(context.Background(), query, data.Name, data.Email, data.Phone, data.WillAttend)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+	}
+}
+
 func formHandler(writer http.ResponseWriter, request *http.Request) {
+
 	if request.Method == http.MethodGet {
 		templates["form"].Execute(writer, formData{
 			Rsvp:   &Rsvp{},
@@ -69,7 +127,7 @@ func formHandler(writer http.ResponseWriter, request *http.Request) {
 				Rsvp: &responseData, Errors: errors,
 			})
 		} else {
-			responses = append(responses, &responseData)
+			insertRecord(&responseData)
 
 			if responseData.WillAttend {
 				templates["thanks"].Execute(writer, responseData.Name)
@@ -80,7 +138,48 @@ func formHandler(writer http.ResponseWriter, request *http.Request) {
 	}
 }
 
+type Scanner interface {
+	Scan(...interface{}) error
+}
+
+func (r *Rsvp) Scan(row Scanner) error {
+	err := row.Scan(
+		&r.Name,
+		&r.Phone,
+		&r.Email,
+		&r.WillAttend,
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func listHandler(writer http.ResponseWriter, request *http.Request) {
+	responses = nil
+	connURL := "postgres://postgres:postgres@localhost:5432/rsvp_db"
+	conn, err := pgx.Connect(context.Background(), connURL)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer conn.Close(context.Background())
+
+	query := "SELECT name, phone, email, will_attend FROM rsvp"
+	rows, err := conn.Query(context.Background(), query)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	for rows.Next() {
+		rsvp := new(Rsvp)
+		if err = rsvp.Scan(rows); err != nil {
+			fmt.Println(err)
+		}
+		responses = append(responses, rsvp)
+	}
+
 	templates["list"].Execute(writer, responses)
 }
 
