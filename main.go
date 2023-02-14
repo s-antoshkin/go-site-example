@@ -5,16 +5,25 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"os"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/joho/godotenv"
 )
+
+var DATABASE_URL string
+
+func init() {
+	if err := godotenv.Load(); err != nil {
+		fmt.Println("No .env file found")
+	}
+}
 
 type Rsvp struct {
 	Name, Email, Phone string
 	WillAttend         bool
 }
 
-var responses = make([]*Rsvp, 0, 10)
 var templates = make(map[string]*template.Template, 3)
 
 func loadTemplates() {
@@ -41,8 +50,7 @@ type formData struct {
 
 func checkDB(email string) bool {
 	var count int
-	connURL := "postgres://postgres:postgres@localhost:5432/rsvp_db"
-	conn, err := pgx.Connect(context.Background(), connURL)
+	conn, err := pgx.Connect(context.Background(), DATABASE_URL)
 	if err != nil {
 		fmt.Println(err)
 		return false
@@ -73,8 +81,7 @@ func updadeRecord(conn *pgx.Conn, data *Rsvp) {
 }
 
 func insertRecord(data *Rsvp) {
-	connURL := "postgres://postgres:postgres@localhost:5432/rsvp_db"
-	conn, err := pgx.Connect(context.Background(), connURL)
+	conn, err := pgx.Connect(context.Background(), DATABASE_URL)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -157,9 +164,8 @@ func (r *Rsvp) Scan(row Scanner) error {
 }
 
 func listHandler(writer http.ResponseWriter, request *http.Request) {
-	responses = nil
-	connURL := "postgres://postgres:postgres@localhost:5432/rsvp_db"
-	conn, err := pgx.Connect(context.Background(), connURL)
+	responses := make([]*Rsvp, 0, 10)
+	conn, err := pgx.Connect(context.Background(), DATABASE_URL)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -184,6 +190,11 @@ func listHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func main() {
+	dbURL, ok := os.LookupEnv("DATABASE_URL")
+	if ok {
+		DATABASE_URL = dbURL
+	}
+
 	loadTemplates()
 
 	http.HandleFunc("/", welcomeHandler)
