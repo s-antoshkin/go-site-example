@@ -16,3 +16,7 @@ psql -h localhost -p 5432 -d rsvp_db -U postgres -f rsvp.sql
 ```
 go run .
 ```
+## Start the application
+```
+go run .
+```
